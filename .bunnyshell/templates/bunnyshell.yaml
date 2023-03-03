@@ -1,0 +1,18 @@
+kind: Environment
+name: 'static gatsby'
+type: primary
+components:
+    -
+        kind: StaticApplication
+        name: gatsby-starter-blog
+        gitRepo: 'https://github.com/sorinpopescunr2/gatsby-starter-blog.git'
+        gitBranch: master
+        gitApplicationPath: /
+        buildNodeVersion: lts
+        buildCommand: 'gatsby build'
+        buildOutputDir: public
+        hosts:
+            -
+                hostname: 'gatsby-starter-blog-{{ env.base_domain }}'
+                path: /
+                servicePort: 8080
