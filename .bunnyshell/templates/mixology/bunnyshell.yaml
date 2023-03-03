@@ -1,0 +1,301 @@
+kind: Environment
+name: mixology
+type: primary
+components:
+    -
+        kind: SidecarContainer
+        name: backend
+        gitRepo: 'git://github.com/sorinpopescunr2/demo-pod.git'
+        gitBranch: master
+        gitApplicationPath: backend
+        dockerCompose:
+            build:
+                context: ./backend
+            hostname: backend
+            restart: always
+        volumes:
+            -
+                name: php-sessions
+                mount: /tmp/php/sessions
+                subPath: ''
+    -
+        kind: InitContainer
+        name: frontend
+        gitRepo: 'git://github.com/sorinpopescunr2/demo-pod.git'
+        gitBranch: master
+        gitApplicationPath: frontend
+        dockerCompose:
+            build:
+                context: ./frontend
+            hostname: frontend
+    -
+        kind: SidecarContainer
+        name: monitor
+        gitRepo: 'git://github.com/sorinpopescunr2/demo-pod.git'
+        gitBranch: master
+        gitApplicationPath: monitor
+        dockerCompose:
+            build:
+                context: ./monitor
+            hostname: monitor
+    -
+        kind: Application
+        name: nginx
+        gitRepo: 'git://github.com/sorinpopescunr2/demo-pod.git'
+        gitBranch: master
+        gitApplicationPath: nginx
+        dockerCompose:
+            build:
+                context: ./nginx
+            hostname: nginx
+            ports:
+                - '9002:80'
+        pod:
+            init_containers:
+                -
+                    from: frontend
+                    name: frontend
+                    environment: {  }
+                    shared_paths:
+                        -
+                            path: /opt/frontend
+                            target:
+                                path: /var/www/html
+                                container: '@parent'
+                            initial_contents: '@self'
+                        -
+                            path: /tmp/disable/docker/nginx/stdout
+                            target:
+                                path: /var/log/nginx
+                                container: monitor
+                            initial_contents: '@self'
+                    volumes: {  }
+                    shared_volumes: {  }
+            sidecar_containers:
+                -
+                    from: backend
+                    name: backend
+                    environment:
+                        CRLU_NAME: pod-backend
+                    shared_paths:
+                        -
+                            path: /var/log/backend
+                            target:
+                                path: /opt/logs/backend
+                                container: monitor
+                            initial_contents: '@self'
+                    volumes: {  }
+                    shared_volumes: {  }
+                -
+                    from: monitor
+                    name: monitor
+                    environment: {  }
+                    shared_paths: {  }
+                    volumes:
+                        -
+                            name: php-sessions
+                            mount: /opt/logs/_sessions
+                            subPath: ''
+                    shared_volumes: {  }
+        hosts:
+            -
+                hostname: 'nginx-{{ env.base_domain }}'
+                path: /
+                servicePort: 9002
+    -
+        kind: DockerImage
+        name: dev-test-image
+        gitRepo: 'https://gitlab.com/sorin.popescu1/neo-dev-test.git'
+        gitBranch: master
+        gitApplicationPath: /
+        context: /
+        dockerfile: Dockerfile
+        args:
+            ENV: bunnyshell
+    -
+        kind: KubernetesManifest
+        name: k8s-manifest
+        gitRepo: 'https://gitlab.com/sorin.popescu1/neo-dev-test.git'
+        gitBranch: master
+        gitApplicationPath: /manifests
+        runnerImage: 'alpine/k8s:1.22.15'
+        deploy:
+            - 'cd manifests'
+            - 'kubectl create ns dev-test-{{ env.unique }} || true'
+            - 'kustomize create --autodetect --recursive --labels=app.kubernetes.io/instance-k8s-manifest:bns,app.kubernetes.io/part-of:env-{{ env.unique }} --namespace=dev-test-{{ env.unique }}'
+            - 'kustomize edit set image nginx={{ components.dev_test_image.image }}'
+            - |
+                kustomize edit add patch --kind Deployment --name man-web-self --patch '[{"op": "add", "path": "/spec/template/spec/containers/0/env/-", "value": {"name": "ENV", "value": "bunnyshell"}}]'
+            - 'sed -i "s/web-self-dev-test.mydomain.com/k8s-manifest-{{ env.base_domain }}/g" ingress.yaml'
+            - 'kubectl apply -k .'
+        destroy:
+            - 'cd manifests'
+            - 'kustomize create --autodetect --recursive --labels=app.kubernetes.io/instance-k8s-manifest:bns,app.kubernetes.io/part-of:env-{{ env.unique }} --namespace=dev-test-{{ env.unique }}'
+            - 'kubectl delete -k .'
+            - 'kubectl delete ns dev-test-{{ env.unique }}'
+        start:
+            - 'kubectl scale --replicas=1 deployment/man-web-self -n dev-test-{{ env.unique }}'
+        stop:
+            - 'kubectl scale --replicas=0 deployment/man-web-self -n dev-test-{{ env.unique }}'
+    -
+        kind: Helm
+        name: repo-helm
+        gitRepo: 'https://gitlab.com/sorin.popescu1/neo-dev-test.git'
+        gitBranch: master
+        gitApplicationPath: /helm
+        runnerImage: 'dtzar/helm-kubectl:3.8.2'
+        deploy:
+            - |
+                cat << EOF > my_values.yaml
+                  env: bunnyshell
+                  serviceImage: {{ components.dev_test_image.image }}
+                  replicas: 1
+                  ingress:
+                    className: bns-nginx
+                    host: repo-helm-{{ env.base_domain }}
+                EOF
+            - 'helm upgrade --install --create-namespace --namespace dev-test-helm-{{ env.unique }} --dependency-update --post-renderer /bns/helpers/helm/add_labels/kustomize -f my_values.yaml dev-test-{{ env.unique }} ./helm'
+        destroy:
+            - 'helm uninstall dev-test-{{ env.unique }} --namespace dev-test-helm-{{ env.unique }}'
+            - 'kubectl delete ns dev-test-helm-{{ env.unique }}'
+        start:
+            - 'helm upgrade --namespace dev-test-helm-{{ env.unique }} --post-renderer /bns/helpers/helm/add_labels/kustomize --reuse-values --set replicas=1 dev-test-{{ env.unique }} ./helm'
+        stop:
+            - 'helm upgrade --namespace dev-test-helm-{{ env.unique }} --post-renderer /bns/helpers/helm/add_labels/kustomize --reuse-values --set replicas=0 dev-test-{{ env.unique }} ./helm'
+    -
+        kind: Helm
+        name: redis
+        runnerImage: 'dtzar/helm-kubectl:3.8.2'
+        deploy:
+            - |
+                cat << EOF > my_values.yaml
+                  master:
+                    replicaCount: 1
+                  replica:
+                    replicaCount: 2
+                EOF
+            - 'helm repo add bitnami https://charts.bitnami.com/bitnami'
+            - 'helm upgrade --install --namespace {{ env.k8s.namespace }} --post-renderer /bns/helpers/helm/add_labels/kustomize -f my_values.yaml redis-{{ env.unique }} bitnami/redis --version 17.3.6'
+        destroy:
+            - 'helm uninstall redis-{{ env.unique }} --namespace {{ env.k8s.namespace }}'
+        start:
+            - 'helm repo add bitnami https://charts.bitnami.com/bitnami'
+            - 'helm upgrade --namespace {{ env.k8s.namespace }} --post-renderer /bns/helpers/helm/add_labels/kustomize --reuse-values --set replica.replicaCount=2 --set master.count=1 redis-{{ env.unique }} bitnami/redis --version 17.3.6'
+        stop:
+            - 'helm repo add bitnami https://charts.bitnami.com/bitnami'
+            - 'helm upgrade --namespace {{ env.k8s.namespace }} --post-renderer /bns/helpers/helm/add_labels/kustomize --reuse-values --set replica.replicaCount=0 --set master.count=0 redis-{{ env.unique }} bitnami/redis --version 17.3.6'
+    -
+        kind: Database
+        name: dbasda
+        gitRepo: 'git://github.com/sorinpopescunr2/774.git'
+        gitBranch: master
+        gitApplicationPath: database
+        dockerCompose:
+            build:
+                context: ./database
+            command: '--ignore-db-dir=lost+found'
+            environment:
+                MYSQL_DATABASE: wordpress3a
+                MYSQL_PASSWORD: wordpress3a
+                MYSQL_ROOT_PASSWORD: somewordpress3a
+                MYSQL_USER: wordpress3a
+            ports:
+                - '3306:3306'
+            restart: always
+        volumes:
+            -
+                name: db-datatest
+                mount: /var/lib/mysql
+                subPath: ''
+    -
+        kind: Application
+        name: myapp
+        gitRepo: 'git://github.com/sorinpopescunr2/774.git'
+        gitBranch: master
+        gitApplicationPath: myapp
+        dockerCompose:
+            build:
+                context: ./myapp
+            ports:
+                - '8000:80'
+            restart: always
+        hosts:
+            -
+                hostname: 'myapp-{{ env.base_domain }}'
+                path: /
+                servicePort: 8000
+    -
+        kind: Application
+        name: backendb
+        gitRepo: 'git://github.com/sorinpopescunr2/demo-books-another-fork.git'
+        gitBranch: master
+        gitApplicationPath: backend
+        dockerCompose:
+            build:
+                context: ./backend
+                target: prod
+            environment:
+                FRONTEND_URL: 'https://{{ components.frontendb.ingress.hosts[0] }}'
+                POSTGRES_DB: bunny_books
+                POSTGRES_HOST: db
+                POSTGRES_PASSWORD: need-to-replace
+                POSTGRES_USER: postgres
+            ports:
+                - '3080:3080'
+        hosts:
+            -
+                hostname: 'backend-{{ env.base_domain }}'
+                path: /
+                servicePort: 3080
+    -
+        kind: Database
+        name: db
+        gitRepo: 'git://github.com/sorinpopescunr2/demo-books-another-fork.git'
+        gitBranch: master
+        dockerCompose:
+            environment:
+                POSTGRES_DB: bunny_books
+                POSTGRES_PASSWORD: need-to-replace
+                POSTGRES_USER: postgres
+            image: postgres
+            restart: always
+            user: postgres
+            ports:
+                - '5432:5432'
+        volumes:
+            -
+                name: db-data
+                mount: /var/lib/postgresql/data
+                subPath: ''
+    -
+        kind: Application
+        name: frontendb
+        gitRepo: 'git://github.com/sorinpopescunr2/demo-books-another-fork.git'
+        gitBranch: master
+        gitApplicationPath: frontend
+        dockerCompose:
+            build:
+                context: ./frontend
+                args:
+                    REACT_APP_BASE_API: 'https://{{ components.backendb.ingress.hosts[0] }}'
+                target: prod
+            ports:
+                - '8080:8080'
+        hosts:
+            -
+                hostname: 'frontend-{{ env.base_domain }}'
+                path: /
+                servicePort: 8080
+volumes:
+    -
+        name: php-sessions
+        size: 1Gi
+        type: network
+    -
+        name: db-datatest
+        size: 1Gi
+        type: disk
+    -
+        name: db-data
+        size: 1Gi
+        type: disk
