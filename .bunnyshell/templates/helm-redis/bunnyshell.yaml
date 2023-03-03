@@ -1,5 +1,5 @@
 kind: Environment
-name: 'helm redis t1'
+name: 'helm redis'
 type: primary
 components:
     -
