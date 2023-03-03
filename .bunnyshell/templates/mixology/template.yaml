@@ -1,0 +1,6 @@
+name: mix of components
+discoverable: true
+stack:
+  packages:
+    - name: nameValue
+      version: '1'
