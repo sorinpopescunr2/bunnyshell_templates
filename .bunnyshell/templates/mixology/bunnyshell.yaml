@@ -5,7 +5,7 @@ components:
     -
         kind: SidecarContainer
         name: backend
-        gitRepo: 'git://github.com/sorinpopescunr2/demo-pod.git'
+        gitRepo: 'https://github.com/sorinpopescunr2/demo-pod.git'
         gitBranch: master
         gitApplicationPath: backend
         dockerCompose:
@@ -21,7 +21,7 @@ components:
     -
         kind: InitContainer
         name: frontend
-        gitRepo: 'git://github.com/sorinpopescunr2/demo-pod.git'
+        gitRepo: 'https://github.com/sorinpopescunr2/demo-pod.git'
         gitBranch: master
         gitApplicationPath: frontend
         dockerCompose:
@@ -31,7 +31,7 @@ components:
     -
         kind: SidecarContainer
         name: monitor
-        gitRepo: 'git://github.com/sorinpopescunr2/demo-pod.git'
+        gitRepo: 'https://github.com/sorinpopescunr2/demo-pod.git'
         gitBranch: master
         gitApplicationPath: monitor
         dockerCompose:
@@ -41,7 +41,7 @@ components:
     -
         kind: Application
         name: nginx
-        gitRepo: 'git://github.com/sorinpopescunr2/demo-pod.git'
+        gitRepo: 'https://github.com/sorinpopescunr2/demo-pod.git'
         gitBranch: master
         gitApplicationPath: nginx
         dockerCompose:
@@ -187,7 +187,7 @@ components:
     -
         kind: Database
         name: dbasda
-        gitRepo: 'git://github.com/sorinpopescunr2/774.git'
+        gitRepo: 'https://github.com/sorinpopescunr2/774.git'
         gitBranch: master
         gitApplicationPath: database
         dockerCompose:
@@ -210,7 +210,7 @@ components:
     -
         kind: Application
         name: myapp
-        gitRepo: 'git://github.com/sorinpopescunr2/774.git'
+        gitRepo: 'https://github.com/sorinpopescunr2/774.git'
         gitBranch: master
         gitApplicationPath: myapp
         dockerCompose:
@@ -227,7 +227,7 @@ components:
     -
         kind: Application
         name: backendb
-        gitRepo: 'git://github.com/sorinpopescunr2/demo-books-another-fork.git'
+        gitRepo: 'https://github.com/sorinpopescunr2/demo-books-another-fork.git'
         gitBranch: master
         gitApplicationPath: backend
         dockerCompose:
@@ -250,7 +250,7 @@ components:
     -
         kind: Database
         name: db
-        gitRepo: 'git://github.com/sorinpopescunr2/demo-books-another-fork.git'
+        gitRepo: 'https://github.com/sorinpopescunr2/demo-books-another-fork.git'
         gitBranch: master
         dockerCompose:
             environment:
@@ -270,7 +270,7 @@ components:
     -
         kind: Application
         name: frontendb
-        gitRepo: 'git://github.com/sorinpopescunr2/demo-books-another-fork.git'
+        gitRepo: 'https://github.com/sorinpopescunr2/demo-books-another-fork.git'
         gitBranch: master
         gitApplicationPath: frontend
         dockerCompose:
