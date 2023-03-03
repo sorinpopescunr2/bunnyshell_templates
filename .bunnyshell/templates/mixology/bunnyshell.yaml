@@ -1,5 +1,5 @@
 kind: Environment
-name: 'mixology t1'
+name: mixology
 type: primary
 components:
     -
