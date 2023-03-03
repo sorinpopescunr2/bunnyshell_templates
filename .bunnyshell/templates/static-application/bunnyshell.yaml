@@ -1,5 +1,5 @@
 kind: Environment
-name: 'static gatsby'
+name: 'static gatsby t1'
 type: primary
 components:
     -
