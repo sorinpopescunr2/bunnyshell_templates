@@ -1,0 +1,27 @@
+kind: Environment
+name: 'helm redis'
+type: primary
+components:
+    -
+        kind: Helm
+        name: redis
+        runnerImage: 'dtzar/helm-kubectl:3.8.2'
+        deploy:
+            - |
+                cat << EOF > my_values.yaml
+                  master:
+                    replicaCount: 1
+                  replica:
+                    replicaCount: 2
+                EOF
+            - 'helm repo add bitnami https://charts.bitnami.com/bitnami'
+            - 'helm upgrade --install --namespace {{ env.k8s.namespace }} --post-renderer /bns/helpers/helm/add_labels/kustomize -f my_values.yaml redis-{{ env.unique }} bitnami/redis --version 17.3.6'
+        destroy:
+            - 'helm uninstall redis-{{ env.unique }} --namespace {{ env.k8s.namespace }}'
+        start:
+            - 'helm repo add bitnami https://charts.bitnami.com/bitnami'
+            - 'helm upgrade --namespace {{ env.k8s.namespace }} --post-renderer /bns/helpers/helm/add_labels/kustomize --reuse-values --set replica.replicaCount=2 --set master.count=1 redis-{{ env.unique }} bitnami/redis --version 17.3.6'
+        stop:
+            - 'helm repo add bitnami https://charts.bitnami.com/bitnami'
+            - 'helm upgrade --namespace {{ env.k8s.namespace }} --post-renderer /bns/helpers/helm/add_labels/kustomize --reuse-values --set replica.replicaCount=0 --set master.count=0 redis-{{ env.unique }} bitnami/redis --version 17.3.6'
+

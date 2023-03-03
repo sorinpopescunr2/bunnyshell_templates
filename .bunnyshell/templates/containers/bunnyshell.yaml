@@ -1,0 +1,109 @@
+kind: Environment
+name: 'in it si de car'
+type: primary
+components:
+    -
+        kind: SidecarContainer
+        name: backend
+        gitRepo: 'https://github.com/sorinpopescunr2/demo-pod.git'
+        gitBranch: master
+        gitApplicationPath: backend
+        dockerCompose:
+            build:
+                context: ./backend
+            hostname: backend
+            restart: always
+        volumes:
+            -
+                name: php-sessions
+                mount: /tmp/php/sessions
+                subPath: ''
+    -
+        kind: InitContainer
+        name: frontend
+        gitRepo: 'https://github.com/sorinpopescunr2/demo-pod.git'
+        gitBranch: master
+        gitApplicationPath: frontend
+        dockerCompose:
+            build:
+                context: ./frontend
+            hostname: frontend
+    -
+        kind: SidecarContainer
+        name: monitor
+        gitRepo: 'https://github.com/sorinpopescunr2/demo-pod.git'
+        gitBranch: master
+        gitApplicationPath: monitor
+        dockerCompose:
+            build:
+                context: ./monitor
+            hostname: monitor
+    -
+        kind: Application
+        name: nginx
+        gitRepo: 'https://github.com/sorinpopescunr2/demo-pod.git'
+        gitBranch: master
+        gitApplicationPath: nginx
+        dockerCompose:
+            build:
+                context: ./nginx
+            hostname: nginx
+            ports:
+                - '9002:80'
+        pod:
+            init_containers:
+                -
+                    from: frontend
+                    name: frontend
+                    environment: {  }
+                    shared_paths:
+                        -
+                            path: /opt/frontend
+                            target:
+                                path: /var/www/html
+                                container: '@parent'
+                            initial_contents: '@self'
+                        -
+                            path: /tmp/disable/docker/nginx/stdout
+                            target:
+                                path: /var/log/nginx
+                                container: monitor
+                            initial_contents: '@self'
+                    volumes: {  }
+                    shared_volumes: {  }
+            sidecar_containers:
+                -
+                    from: backend
+                    name: backend
+                    environment:
+                        CRLU_NAME: pod-backend
+                    shared_paths:
+                        -
+                            path: /var/log/backend
+                            target:
+                                path: /opt/logs/backend
+                                container: monitor
+                            initial_contents: '@self'
+                    volumes: {  }
+                    shared_volumes: {  }
+                -
+                    from: monitor
+                    name: monitor
+                    environment: {  }
+                    shared_paths: {  }
+                    volumes:
+                        -
+                            name: php-sessions
+                            mount: /opt/logs/_sessions
+                            subPath: ''
+                    shared_volumes: {  }
+        hosts:
+            -
+                hostname: 'nginx-{{env.base_domain}}'
+                path: /
+                servicePort: 9002
+volumes:
+    -
+        name: php-sessions
+        size: 1Gi
+        type: network
